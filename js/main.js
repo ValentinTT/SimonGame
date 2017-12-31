@@ -10,13 +10,19 @@ var cornerClickColors = {
     blue: "#1ba2b4",
     yellow: "#ffc400"
 };
+/*
+E - note(blue, lower right);
+C♯ - note(yellow, lower left);
+A - note(red, upper right).
+E - note(green, upper left, an octave lower than blue);
+*/
 var cornerSounds = {
-    green: "https://s3.amazonaws.com/freecodecamp/simonSound1.mp3",
-    red: "https://s3.amazonaws.com/freecodecamp/simonSound2.mp3",
-    blue: "https://s3.amazonaws.com/freecodecamp/simonSound3.mp3",
-    yellow: "https://s3.amazonaws.com/freecodecamp/simonSound4.mp3",
-    error: "http://res.cloudinary.com/dzlmilfku/video/upload/v1514701456/incorrect_sound_effect_iqfcvj.mp3"
-}
+    green: 164.8,
+    red: 440.0,
+    blue: 329.6,
+    yellow: 277.2,
+    error: 523.3
+};
 $(document).ready(function() {
     let game = {
         isOn: false,
@@ -24,6 +30,11 @@ $(document).ready(function() {
         isStrict: false,
         sequence: [],
     };
+    //Oscillator variables
+    let context = new AudioContext();
+    let o = context.createOscillator();
+    let g = context.createGain();
+
     //All the interval's id are global in case the game is suddenly stoped by the user
     var playersTimeID, tileLightOnId, tileLightOffId, displayIntervalId;
 
@@ -56,6 +67,7 @@ $(document).ready(function() {
             endGame("--");
         }
     });
+
     /*Change the game modality*/
     $('.strict').on('click', function() {
         console.log("On Strict");
@@ -112,22 +124,21 @@ $(document).ready(function() {
             console.log("Lights On:", index);
             //Turn on the tile's light and sound
             $('.' + game.sequence[index]).css('background', cornerClickColors[game.sequence[index]]);
-            $.playSound(cornerSounds[game.sequence[index]]);
+            playSound(cornerSounds[game.sequence[index]], true);
             tileLightOffId = setInterval(function() {
                 console.log("Lights Off", index);
                 //After 800ms turn off the tile's light and sound
                 $('.' + game.sequence[index]).css('background', cornerColors[game.sequence[index]]);
-                $.stopSound(cornerSounds[game.sequence[index]]);
-
+                playSound(cornerSounds[game.sequence[index]], false);
                 clearInterval(tileLightOffId); //Stop this interval
-                index++; //Pass to the next tile (in 200ms)
+                index++; //Pass to the next tile (in 400ms)
                 if (index === game.sequence.length) {
                     //If we finished to display the sequence then is player's turn
                     clearInterval(tileLightOnId);
                     playersTurn();
                 }
             }, 800);
-        }, 1000);
+        }, 1200);
     }
 
     //Add the listener to the tiles so the user can play the sequence
@@ -149,7 +160,7 @@ $(document).ready(function() {
             //Show tile's color change and play sound
             let tileColor = $(this).attr('class').split(" ")[1]; //Get which tile was pressed
             $(this).css('background', cornerClickColors[tileColor]);
-            $.playSound(cornerSounds[game.sequence[index]]);
+            playSound(cornerSounds[tileColor], true);
             clickIn = tileColor;
         });
         $('.corner').on('mouseup', function() {
@@ -162,6 +173,7 @@ $(document).ready(function() {
             clickIn = "";
             //Restore tile's normal color
             $(this).css('background', cornerColors[tileColor]);
+            playSound(cornerSounds[tileColor], false);
             clearInterval(playersTimeID); //Stop players time
             if (tileColor === game.sequence[index]) { //Correct tile
                 index++;
@@ -185,7 +197,7 @@ $(document).ready(function() {
     //Handle wrong tile selected by the user
     function wrongTile() {
         //Wrong tile animation and sound
-        $.playSound(cornerSounds.error);
+        playSound(cornerSounds["error"], true);
         $('.display p').addClass("pulse");
         $('.display p').html("!!");
         displayIntervalId = setInterval(function() {
@@ -199,11 +211,28 @@ $(document).ready(function() {
             } else {
                 simonsTurn();
             }
+            playSound(cornerSounds["error"], false);
         }, 1000);
     }
 
     //Reestart game object and tiles' color. Stop all intervals that are possibly running
+    function playSound(frec, play) {
+        if (play) {
+            o = context.createOscillator();
+            g = context.createGain();
+            o.connect(g);
+            g.connect(context.destination);
+            o.frequency.value = frec;
+            o.type = "triangle";
+            o.start(0);
+        } else {
+            g.gain.exponentialRampToValueAtTime(0.00001, context.currentTime + 0.1);
+        }
+
+    }
+
     function endGame(displayTxt) {
+        playSound("", false);
         $('.diplay p').removeClass("pulse");
         $('.display p').html(displayTxt);
         game.isStarted = false;
@@ -218,32 +247,4 @@ $(document).ready(function() {
         $('.blue').css('background', cornerColors["blue"]);
         $('.yellow').css('background', cornerColors["yellow"]);
     }
-
 });
-
-/**
- * @author Alexander Manzyuk <admsev@gmail.com>
- * Copyright (c) 2012 Alexander Manzyuk - released under MIT License
- * https://github.com/admsev/jquery-play-sound
- * Usage: $.playSound('http://example.org/sound')
- * $.playSound('http://example.org/sound.wav')
- * $.playSound('/attachments/sounds/1234.wav')
- * $.playSound('/attachments/sounds/1234.mp3')
- * $.stopSound();
- **/
-
-(function($) {
-    $.extend({
-        playSound: function() {
-            return $(
-                '<audio class="sound-player" autoplay="autoplay" style="display:none;">' +
-                '<source src="' + arguments[0] + '" />' +
-                '<embed src="' + arguments[0] + '" hidden="true" autostart="true" loop="false"/>' +
-                '</audio>'
-            ).appendTo('body');
-        },
-        stopSound: function() {
-            $(".sound-player").remove();
-        }
-    });
-})(jQuery);
